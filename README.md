@@ -155,11 +155,18 @@ node tests/test_expense_tracker.mjs
 ### Verification Results
 ```
 === Student Expense Tracker Verification Suite ===
-✓ Test 1 Passed: Empty state returns zero totals
-✓ Test 2 Passed: Adding multiple categorized expenses aggregates correctly (₹450 total, ₹250 max)
-✓ Test 3 Passed: Rejection of empty descriptions, zero amounts, and negative numbers
-✓ Test 4 Passed: Deletion recalculates metrics correctly
-ALL 4 EXPENSE TRACKER VERIFICATION TESTS PASSED!
+
+PASS: Empty state returns zero totals
+PASS: Adding valid items calculates metrics accurately
+PASS: Input validation rejects invalid descriptions and non-positive/infinite amounts
+PASS: Deletion removes target item and updates metrics
+PASS: HTML tags in description are stored literally without execution
+PASS: DOM rendering verified safe: HTML/script tags are literal text, no elements injected
+PASS: Storage serialization round-trip maintains data integrity
+
+=======================================================
+ALL 7 EXPENSE TRACKER VERIFICATION TESTS PASSED!
+=======================================================
 ```
 
 ---
@@ -189,6 +196,12 @@ Can be dragged and dropped directly or deployed as a static zero-config site.
 - [ ] **CSV / PDF Statement Export:** Download month-end spending summary reports.
 - [ ] **Category Pie Chart:** Visual breakdown of spending by percentage using Chart.js or Canvas API.
 - [ ] **Monthly Budget Cap & Alerts:** Set monthly allowance (e.g. ₹5,000) with visual progress bar warning when 80% is reached.
+
+---
+
+## License
+
+MIT License — see the [LICENSE](LICENSE) file for details.
 
 ---
 

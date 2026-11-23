@@ -52,7 +52,7 @@ function addExpense() {
     alert("Please provide an expense description.");
     return;
   }
-  if (isNaN(amount) || amount <= 0) {
+  if (isNaN(amount) || amount <= 0 || !isFinite(amount)) {
     alert("Please enter a valid positive amount.");
     return;
   }
@@ -112,9 +112,67 @@ function updateMetrics() {
   const countEl = document.getElementById("count");
   const highestEl = document.getElementById("highest");
 
-  if (totalEl) totalEl.innerText = total.toLocaleString("en-IN", { maximumFractionDigits: 2 });
-  if (countEl) countEl.innerText = count;
-  if (highestEl) highestEl.innerText = highest.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  if (totalEl) totalEl.textContent = total.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  if (countEl) countEl.textContent = count;
+  if (highestEl) highestEl.textContent = highest.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+}
+
+/**
+ * Construct an expense item DOM element safely using text nodes
+ */
+function createExpenseItemElement(item, onDelete) {
+  const li = document.createElement("li");
+  li.className = "expense-item";
+
+  const left = document.createElement("div");
+  left.className = "item-left";
+
+  const descSpan = document.createElement("span");
+  descSpan.className = "item-desc";
+  descSpan.textContent = item.desc;
+
+  const metaSpan = document.createElement("span");
+  metaSpan.className = "item-meta";
+
+  const catSpan = document.createElement("span");
+  catSpan.className = "item-category";
+  catSpan.textContent = item.category;
+
+  const dateText = document.createTextNode(` · ${item.date}`);
+  metaSpan.appendChild(catSpan);
+  metaSpan.appendChild(dateText);
+
+  left.appendChild(descSpan);
+  left.appendChild(metaSpan);
+
+  const right = document.createElement("div");
+  right.className = "item-right";
+
+  const amountSpan = document.createElement("span");
+  amountSpan.className = "item-amount";
+  amountSpan.textContent = "₹" + item.amount.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+
+  const delBtn = document.createElement("button");
+  delBtn.type = "button";
+  delBtn.className = "delete-btn";
+  delBtn.title = `Delete ${item.desc}`;
+  delBtn.setAttribute("aria-label", `Delete expense: ${item.desc} (₹${item.amount})`);
+
+  const iconSpan = document.createElement("span");
+  iconSpan.setAttribute("aria-hidden", "true");
+  iconSpan.textContent = "×";
+  delBtn.appendChild(iconSpan);
+
+  if (onDelete) {
+    delBtn.onclick = () => onDelete(item.id);
+  }
+
+  right.appendChild(amountSpan);
+  right.appendChild(delBtn);
+
+  li.appendChild(left);
+  li.appendChild(right);
+  return li;
 }
 
 /**
@@ -125,7 +183,7 @@ function renderList() {
   const emptyEl = document.getElementById("empty-state");
 
   if (!listEl) return;
-  listEl.innerHTML = "";
+  listEl.textContent = "";
 
   if (expenses.length === 0) {
     if (emptyEl) emptyEl.style.display = "block";
@@ -135,41 +193,7 @@ function renderList() {
   if (emptyEl) emptyEl.style.display = "none";
 
   expenses.forEach(item => {
-    const li = document.createElement("li");
-    li.className = "expense-item";
-
-    const left = document.createElement("div");
-    left.className = "item-left";
-
-    const descSpan = document.createElement("span");
-    descSpan.className = "item-desc";
-    descSpan.innerText = item.desc;
-
-    const metaSpan = document.createElement("span");
-    metaSpan.className = "item-meta";
-    metaSpan.innerHTML = `<span class="item-category">${item.category}</span> · ${item.date}`;
-
-    left.appendChild(descSpan);
-    left.appendChild(metaSpan);
-
-    const right = document.createElement("div");
-    right.className = "item-right";
-
-    const amountSpan = document.createElement("span");
-    amountSpan.className = "item-amount";
-    amountSpan.innerText = "₹" + item.amount.toLocaleString("en-IN", { maximumFractionDigits: 2 });
-
-    const delBtn = document.createElement("button");
-    delBtn.className = "delete-btn";
-    delBtn.title = "Delete this expense";
-    delBtn.innerHTML = "&times;";
-    delBtn.onclick = () => deleteExpense(item.id);
-
-    right.appendChild(amountSpan);
-    right.appendChild(delBtn);
-
-    li.appendChild(left);
-    li.appendChild(right);
+    const li = createExpenseItemElement(item, deleteExpense);
     listEl.appendChild(li);
   });
 }
@@ -180,6 +204,11 @@ function renderList() {
 function render() {
   updateMetrics();
   renderList();
+
+  const clearBtn = document.getElementById("clear-btn");
+  if (clearBtn) {
+    clearBtn.disabled = expenses.length === 0;
+  }
 }
 
 // Automatically start app when DOM is ready
@@ -190,20 +219,29 @@ if (typeof document !== "undefined") {
 // Export for automated unit testing in Node environments
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
+    STORAGE_KEY,
     addExpenseToState: (list, desc, amount, category) => {
-      if (!desc || isNaN(amount) || amount <= 0) return list;
+      const cleanDesc = typeof desc === "string" ? desc.trim() : "";
+      const numAmount = typeof amount === "number" ? amount : parseFloat(amount);
+      if (!cleanDesc || isNaN(numAmount) || numAmount <= 0 || !isFinite(numAmount)) {
+        return list;
+      }
       return [{
-        id: "test_" + Date.now(),
-        desc,
-        amount: Number(amount),
+        id: "test_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+        desc: cleanDesc,
+        amount: numAmount,
         category: category || "Other",
         date: "23 Nov 2026"
       }, ...list];
+    },
+    deleteExpenseFromState: (list, id) => {
+      return list.filter(item => item.id !== id);
     },
     calculateTotals: (list) => {
       const total = list.reduce((s, x) => s + x.amount, 0);
       const highest = list.reduce((max, x) => x.amount > max ? x.amount : max, 0);
       return { total, count: list.length, highest };
-    }
+    },
+    createExpenseItemElement
   };
 }
