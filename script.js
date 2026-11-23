@@ -21,27 +21,43 @@ function sanitizeStoredExpenses(data) {
     .filter(item => {
       if (!item || typeof item !== "object") return false;
       const hasValidDesc = typeof item.desc === "string" && item.desc.trim().length > 0;
-      const numAmount = typeof item.amount === "number" ? item.amount : parseFloat(item.amount);
-      const hasValidAmount = !isNaN(numAmount) && numAmount > 0 && isFinite(numAmount);
+
+      let numAmount = null;
+      if (typeof item.amount === "number") {
+        numAmount = item.amount;
+      } else if (typeof item.amount === "string" && item.amount.trim().length > 0) {
+        const num = Number(item.amount.trim());
+        if (!isNaN(num)) {
+          numAmount = num;
+        }
+      }
+
+      const hasValidAmount = numAmount !== null && isFinite(numAmount) && numAmount > 0;
       return hasValidDesc && hasValidAmount;
     })
-    .map(item => ({
-      id: typeof item.id === "string" && item.id.trim().length > 0
-        ? item.id.trim()
-        : "exp_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
-      desc: item.desc.trim(),
-      amount: Math.round((typeof item.amount === "number" ? item.amount : parseFloat(item.amount)) * 100) / 100,
-      category: typeof item.category === "string" && item.category.trim().length > 0
-        ? item.category.trim()
-        : "Other",
-      date: typeof item.date === "string" && item.date.trim().length > 0
-        ? item.date.trim()
-        : new Date().toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-            year: "numeric"
-          })
-    }));
+    .map(item => {
+      const numAmount = typeof item.amount === "number"
+        ? item.amount
+        : Number(item.amount.trim());
+
+      return {
+        id: typeof item.id === "string" && item.id.trim().length > 0
+          ? item.id
+          : "exp_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+        desc: item.desc,
+        amount: numAmount,
+        category: typeof item.category === "string" && item.category.trim().length > 0
+          ? item.category
+          : "Other",
+        date: typeof item.date === "string" && item.date.trim().length > 0
+          ? item.date
+          : new Date().toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              year: "numeric"
+            })
+      };
+    });
 }
 
 /**

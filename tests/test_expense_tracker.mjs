@@ -176,7 +176,7 @@ console.log("=== Student Expense Tracker Verification Suite ===\n");
   assert.deepStrictEqual(sanitizeStoredExpenses({ invalid: "object" }), []);
   assert.deepStrictEqual(sanitizeStoredExpenses(true), []);
 
-  // 2. Corrupt or malformed array items are safely filtered while preserving valid items
+  // 2. Corrupt or malformed array items are safely filtered, rejecting malformed amount strings like "125abc"
   const corruptInput = [
     null,
     undefined,
@@ -189,12 +189,13 @@ console.log("=== Student Expense Tracker Verification Suite ===\n");
     { desc: "Zero amount", amount: 0 },
     { desc: "NaN amount", amount: "not_a_number" },
     { desc: "Infinite amount", amount: Infinity },
+    { desc: "Malformed numeric string", amount: "125abc" },
     { id: "exp_valid_1", desc: "Valid Dinner", amount: 250.5, category: "Food & Dining", date: "23 Nov 2026" },
     { desc: "Valid Snack without ID", amount: 45 }
   ];
 
   const sanitized = sanitizeStoredExpenses(corruptInput);
-  assert.strictEqual(sanitized.length, 2, "Only valid expense objects should be preserved");
+  assert.strictEqual(sanitized.length, 2, "Only valid expense objects should be preserved, rejecting '125abc'");
   assert.strictEqual(sanitized[0].id, "exp_valid_1");
   assert.strictEqual(sanitized[0].desc, "Valid Dinner");
   assert.strictEqual(sanitized[0].amount, 250.5);
@@ -205,7 +206,46 @@ console.log("=== Student Expense Tracker Verification Suite ===\n");
   assert.strictEqual(sanitized[1].category, "Other");
   assert.ok(sanitized[1].id.startsWith("exp_"), "Missing ID should be safely generated");
 
-  // 3. Confirm sanitized output passes through calculation metrics without crashing
+  // 3. Precision & Original Amount Preservation:
+  // - A malformed amount string such as "125abc" is rejected
+  // - A valid numeric amount with fractional precision (e.g. 145.875) is preserved
+  // - A small positive amount that would previously round to zero (e.g. 0.001) is preserved
+  // - All valid existing record fields (desc, ID, category, date, amount) are preserved
+  const originalRecord = {
+    id: "exp_exact_1",
+    desc: "Research Lab Fee",
+    amount: 145.875,
+    category: "Books & Study",
+    date: "15 Oct 2026"
+  };
+  const microRecord = {
+    id: "exp_micro_1",
+    desc: "Micro Unit Payment",
+    amount: 0.001,
+    category: "Other",
+    date: "20 Nov 2026"
+  };
+  const malformedStringRecord = {
+    id: "exp_bad_1",
+    desc: "Invalid Amount String",
+    amount: "125abc"
+  };
+
+  const precisionTestList = [originalRecord, microRecord, malformedStringRecord];
+  const precisionSanitized = sanitizeStoredExpenses(precisionTestList);
+
+  assert.strictEqual(precisionSanitized.length, 2, "Malformed amount '125abc' must be rejected");
+  assert.strictEqual(precisionSanitized[0].amount, originalRecord.amount, "Original amount must be preserved exactly");
+  assert.strictEqual(precisionSanitized[0].amount, 145.875, "Valid numeric amount with fractional precision must not be rounded");
+  assert.strictEqual(precisionSanitized[0].desc, originalRecord.desc, "Original description must be preserved");
+  assert.strictEqual(precisionSanitized[0].id, originalRecord.id, "Original ID must be preserved");
+  assert.strictEqual(precisionSanitized[0].category, originalRecord.category, "Original category must be preserved");
+  assert.strictEqual(precisionSanitized[0].date, originalRecord.date, "Original date must be preserved");
+
+  assert.strictEqual(precisionSanitized[1].amount, 0.001, "Small positive amount (0.001) must not round to zero");
+  assert.strictEqual(precisionSanitized[1].amount, microRecord.amount, "Micro amount must match original");
+
+  // 4. Confirm sanitized output passes through calculation metrics without crashing
   const metrics = calculateTotals(sanitized);
   assert.strictEqual(metrics.total, 295.5);
   assert.strictEqual(metrics.count, 2);
