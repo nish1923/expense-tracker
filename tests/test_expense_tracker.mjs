@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const {
   STORAGE_KEY,
+  sanitizeStoredExpenses,
   addExpenseToState,
   deleteExpenseFromState,
   calculateTotals,
@@ -78,7 +79,7 @@ console.log("=== Student Expense Tracker Verification Suite ===\n");
   console.log("PASS: HTML tags in description are stored literally without execution");
 }
 
-// Test 6: DOM rendering safe-text verification & XSS immunity (DOM Simulation)
+// Test 6: DOM rendering safe-text verification using safe DOM text APIs (DOM Simulation)
 {
   const createdElements = [];
   const mockDoc = {
@@ -145,7 +146,7 @@ console.log("=== Student Expense Tracker Verification Suite ===\n");
   assert.strictEqual(delBtn.attributes["aria-label"], `Delete expense: ${htmlPayload} (₹150)`);
 
   global.document = prevDoc;
-  console.log("PASS: DOM rendering verified safe: HTML/script tags are literal text, no elements injected");
+  console.log("PASS: DOM rendering verified safe: textContent ensures HTML/script tags render as inert text");
 }
 
 // Test 7: LocalStorage serialization and recovery simulation
@@ -165,6 +166,54 @@ console.log("=== Student Expense Tracker Verification Suite ===\n");
   console.log("PASS: Storage serialization round-trip maintains data integrity");
 }
 
+// Test 8: LocalStorage hardening against malformed or unexpected JSON structures
+{
+  // 1. Non-array inputs must default safely to empty array
+  assert.deepStrictEqual(sanitizeStoredExpenses(null), []);
+  assert.deepStrictEqual(sanitizeStoredExpenses(undefined), []);
+  assert.deepStrictEqual(sanitizeStoredExpenses("corrupted string"), []);
+  assert.deepStrictEqual(sanitizeStoredExpenses(12345), []);
+  assert.deepStrictEqual(sanitizeStoredExpenses({ invalid: "object" }), []);
+  assert.deepStrictEqual(sanitizeStoredExpenses(true), []);
+
+  // 2. Corrupt or malformed array items are safely filtered while preserving valid items
+  const corruptInput = [
+    null,
+    undefined,
+    42,
+    "not-an-object",
+    {},
+    { desc: "", amount: 100 },
+    { desc: "   ", amount: 100 },
+    { desc: "Negative amount", amount: -50 },
+    { desc: "Zero amount", amount: 0 },
+    { desc: "NaN amount", amount: "not_a_number" },
+    { desc: "Infinite amount", amount: Infinity },
+    { id: "exp_valid_1", desc: "Valid Dinner", amount: 250.5, category: "Food & Dining", date: "23 Nov 2026" },
+    { desc: "Valid Snack without ID", amount: 45 }
+  ];
+
+  const sanitized = sanitizeStoredExpenses(corruptInput);
+  assert.strictEqual(sanitized.length, 2, "Only valid expense objects should be preserved");
+  assert.strictEqual(sanitized[0].id, "exp_valid_1");
+  assert.strictEqual(sanitized[0].desc, "Valid Dinner");
+  assert.strictEqual(sanitized[0].amount, 250.5);
+  assert.strictEqual(sanitized[0].category, "Food & Dining");
+
+  assert.strictEqual(sanitized[1].desc, "Valid Snack without ID");
+  assert.strictEqual(sanitized[1].amount, 45);
+  assert.strictEqual(sanitized[1].category, "Other");
+  assert.ok(sanitized[1].id.startsWith("exp_"), "Missing ID should be safely generated");
+
+  // 3. Confirm sanitized output passes through calculation metrics without crashing
+  const metrics = calculateTotals(sanitized);
+  assert.strictEqual(metrics.total, 295.5);
+  assert.strictEqual(metrics.count, 2);
+  assert.strictEqual(metrics.highest, 250.5);
+
+  console.log("PASS: LocalStorage hardening safely handles non-array and corrupt data structures");
+}
+
 console.log("\n=======================================================");
-console.log("ALL 7 EXPENSE TRACKER VERIFICATION TESTS PASSED!");
+console.log("ALL 8 EXPENSE TRACKER VERIFICATION TESTS PASSED!");
 console.log("=======================================================\n");

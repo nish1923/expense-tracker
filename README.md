@@ -43,7 +43,8 @@ Student Expense Tracker provides an instantaneous, private, zero-setup ledger di
   - **Total Outflow:** Real-time cumulative sum in INR.
   - **Transactions:** Count of active logged items.
   - **Largest Expense:** Highlights the single highest expense to spot major spending spikes.
-- 💾 **Client-Side LocalStorage Persistence:** Records are serialized to browser storage (`student_expenses_v1`), preserving records across page refreshes and browser restarts.
+- 🛡️ **Safe DOM Text Rendering:** Dynamic user-provided text (descriptions, categories, dates) is inserted exclusively using safe DOM text APIs (`textContent`, `document.createTextNode`), ensuring user inputs render as inert text without executing scripts.
+- 💾 **Hardened Client-Side LocalStorage Persistence:** Records are serialized to browser storage (`student_expenses_v1`), preserving records across page refreshes and browser restarts. Stored payloads are rigorously validated on initialization, gracefully discarding malformed entries without disrupting application state.
 - 🗑️ **Inline Deletion & Total Recalculation:** Remove incorrect entries with a single click, instantly adjusting totals.
 - 📱 **Responsive Dark Theme:** Modern, ergonomic dark theme built with CSS custom properties, fully optimized for both desktop and mobile screens.
 
@@ -161,11 +162,12 @@ PASS: Adding valid items calculates metrics accurately
 PASS: Input validation rejects invalid descriptions and non-positive/infinite amounts
 PASS: Deletion removes target item and updates metrics
 PASS: HTML tags in description are stored literally without execution
-PASS: DOM rendering verified safe: HTML/script tags are literal text, no elements injected
+PASS: DOM rendering verified safe: textContent ensures HTML/script tags render as inert text
 PASS: Storage serialization round-trip maintains data integrity
+PASS: LocalStorage hardening safely handles non-array and corrupt data structures
 
 =======================================================
-ALL 7 EXPENSE TRACKER VERIFICATION TESTS PASSED!
+ALL 8 EXPENSE TRACKER VERIFICATION TESTS PASSED!
 =======================================================
 ```
 
@@ -177,7 +179,7 @@ ALL 7 EXPENSE TRACKER VERIFICATION TESTS PASSED!
 1. In repository settings, navigate to **Pages**.
 2. Source: **Deploy from a branch**.
 3. Branch: `main` (or `portfolio/audit-repair-nish1923`), folder: `/ (root)`.
-4. Click **Save**. The application will be live immediately at `https://nish1923.github.io/expense-tracker/`.
+4. Click **Save**. Note that GitHub Pages must be explicitly configured in repository settings before `https://nish1923.github.io/expense-tracker/` becomes live. Once the GitHub Pages deployment action completes, the application will be accessible at that URL.
 
 ### Vercel / Netlify
 Can be dragged and dropped directly or deployed as a static zero-config site.

@@ -9,13 +9,52 @@ const STORAGE_KEY = "student_expenses_v1";
 let expenses = [];
 
 /**
+ * Sanitize and validate stored expense records loaded from storage.
+ * Ensures data is an array of well-formed expense objects and gracefully
+ * handles unexpected, corrupted, or non-array JSON structures.
+ */
+function sanitizeStoredExpenses(data) {
+  if (!Array.isArray(data)) {
+    return [];
+  }
+  return data
+    .filter(item => {
+      if (!item || typeof item !== "object") return false;
+      const hasValidDesc = typeof item.desc === "string" && item.desc.trim().length > 0;
+      const numAmount = typeof item.amount === "number" ? item.amount : parseFloat(item.amount);
+      const hasValidAmount = !isNaN(numAmount) && numAmount > 0 && isFinite(numAmount);
+      return hasValidDesc && hasValidAmount;
+    })
+    .map(item => ({
+      id: typeof item.id === "string" && item.id.trim().length > 0
+        ? item.id.trim()
+        : "exp_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+      desc: item.desc.trim(),
+      amount: Math.round((typeof item.amount === "number" ? item.amount : parseFloat(item.amount)) * 100) / 100,
+      category: typeof item.category === "string" && item.category.trim().length > 0
+        ? item.category.trim()
+        : "Other",
+      date: typeof item.date === "string" && item.date.trim().length > 0
+        ? item.date.trim()
+        : new Date().toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric"
+          })
+    }));
+}
+
+/**
  * Initialize application state from localStorage
  */
 function initApp() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      expenses = JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      expenses = sanitizeStoredExpenses(parsed);
+    } else {
+      expenses = [];
     }
   } catch (err) {
     console.warn("Could not load from localStorage, initializing empty state:", err);
@@ -104,9 +143,10 @@ function clearAllExpenses() {
  * Calculate totals and update metric cards
  */
 function updateMetrics() {
-  const total = expenses.reduce((sum, item) => sum + item.amount, 0);
-  const count = expenses.length;
-  const highest = expenses.reduce((max, item) => item.amount > max ? item.amount : max, 0);
+  const safeExpenses = Array.isArray(expenses) ? expenses : [];
+  const total = safeExpenses.reduce((sum, item) => sum + (item && typeof item.amount === "number" && isFinite(item.amount) ? item.amount : 0), 0);
+  const count = safeExpenses.length;
+  const highest = safeExpenses.reduce((max, item) => (item && typeof item.amount === "number" && isFinite(item.amount) && item.amount > max ? item.amount : max), 0);
 
   const totalEl = document.getElementById("total");
   const countEl = document.getElementById("count");
@@ -124,21 +164,29 @@ function createExpenseItemElement(item, onDelete) {
   const li = document.createElement("li");
   li.className = "expense-item";
 
+  if (!item || typeof item !== "object") return li;
+
+  const desc = typeof item.desc === "string" ? item.desc : "";
+  const category = typeof item.category === "string" ? item.category : "Other";
+  const date = typeof item.date === "string" ? item.date : "";
+  const amount = typeof item.amount === "number" && isFinite(item.amount) ? item.amount : 0;
+  const id = typeof item.id === "string" ? item.id : "";
+
   const left = document.createElement("div");
   left.className = "item-left";
 
   const descSpan = document.createElement("span");
   descSpan.className = "item-desc";
-  descSpan.textContent = item.desc;
+  descSpan.textContent = desc;
 
   const metaSpan = document.createElement("span");
   metaSpan.className = "item-meta";
 
   const catSpan = document.createElement("span");
   catSpan.className = "item-category";
-  catSpan.textContent = item.category;
+  catSpan.textContent = category;
 
-  const dateText = document.createTextNode(` · ${item.date}`);
+  const dateText = document.createTextNode(` · ${date}`);
   metaSpan.appendChild(catSpan);
   metaSpan.appendChild(dateText);
 
@@ -150,21 +198,21 @@ function createExpenseItemElement(item, onDelete) {
 
   const amountSpan = document.createElement("span");
   amountSpan.className = "item-amount";
-  amountSpan.textContent = "₹" + item.amount.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  amountSpan.textContent = "₹" + amount.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
   const delBtn = document.createElement("button");
   delBtn.type = "button";
   delBtn.className = "delete-btn";
-  delBtn.title = `Delete ${item.desc}`;
-  delBtn.setAttribute("aria-label", `Delete expense: ${item.desc} (₹${item.amount})`);
+  delBtn.title = `Delete ${desc}`;
+  delBtn.setAttribute("aria-label", `Delete expense: ${desc} (₹${amount})`);
 
   const iconSpan = document.createElement("span");
   iconSpan.setAttribute("aria-hidden", "true");
   iconSpan.textContent = "×";
   delBtn.appendChild(iconSpan);
 
-  if (onDelete) {
-    delBtn.onclick = () => onDelete(item.id);
+  if (onDelete && id) {
+    delBtn.onclick = () => onDelete(id);
   }
 
   right.appendChild(amountSpan);
@@ -185,14 +233,16 @@ function renderList() {
   if (!listEl) return;
   listEl.textContent = "";
 
-  if (expenses.length === 0) {
+  const safeExpenses = Array.isArray(expenses) ? expenses : [];
+
+  if (safeExpenses.length === 0) {
     if (emptyEl) emptyEl.style.display = "block";
     return;
   }
 
   if (emptyEl) emptyEl.style.display = "none";
 
-  expenses.forEach(item => {
+  safeExpenses.forEach(item => {
     const li = createExpenseItemElement(item, deleteExpense);
     listEl.appendChild(li);
   });
@@ -202,6 +252,9 @@ function renderList() {
  * Master render pipeline
  */
 function render() {
+  if (!Array.isArray(expenses)) {
+    expenses = [];
+  }
   updateMetrics();
   renderList();
 
@@ -220,11 +273,13 @@ if (typeof document !== "undefined") {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     STORAGE_KEY,
+    sanitizeStoredExpenses,
     addExpenseToState: (list, desc, amount, category) => {
+      const safeList = Array.isArray(list) ? list : [];
       const cleanDesc = typeof desc === "string" ? desc.trim() : "";
       const numAmount = typeof amount === "number" ? amount : parseFloat(amount);
       if (!cleanDesc || isNaN(numAmount) || numAmount <= 0 || !isFinite(numAmount)) {
-        return list;
+        return safeList;
       }
       return [{
         id: "test_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
@@ -232,14 +287,16 @@ if (typeof module !== "undefined" && module.exports) {
         amount: numAmount,
         category: category || "Other",
         date: "23 Nov 2026"
-      }, ...list];
+      }, ...safeList];
     },
     deleteExpenseFromState: (list, id) => {
-      return list.filter(item => item.id !== id);
+      if (!Array.isArray(list)) return [];
+      return list.filter(item => item && item.id !== id);
     },
     calculateTotals: (list) => {
-      const total = list.reduce((s, x) => s + x.amount, 0);
-      const highest = list.reduce((max, x) => x.amount > max ? x.amount : max, 0);
+      if (!Array.isArray(list)) return { total: 0, count: 0, highest: 0 };
+      const total = list.reduce((s, x) => s + (x && typeof x.amount === "number" && isFinite(x.amount) ? x.amount : 0), 0);
+      const highest = list.reduce((max, x) => (x && typeof x.amount === "number" && isFinite(x.amount) && x.amount > max ? x.amount : max), 0);
       return { total, count: list.length, highest };
     },
     createExpenseItemElement
