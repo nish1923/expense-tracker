@@ -1,0 +1,259 @@
+// Automated Verification Suite for Student Expense Tracker
+import assert from "node:assert";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const {
+  STORAGE_KEY,
+  sanitizeStoredExpenses,
+  addExpenseToState,
+  deleteExpenseFromState,
+  calculateTotals,
+  createExpenseItemElement
+} = require("../script.js");
+
+console.log("=== Student Expense Tracker Verification Suite ===\n");
+
+// Test 1: Empty state initial calculation
+{
+  const metrics = calculateTotals([]);
+  assert.strictEqual(metrics.total, 0);
+  assert.strictEqual(metrics.count, 0);
+  assert.strictEqual(metrics.highest, 0);
+  console.log("PASS: Empty state returns zero totals");
+}
+
+// Test 2: Adding valid expense items and aggregate calculations
+{
+  let state = [];
+  state = addExpenseToState(state, "Canteen Lunch", 80, "Food & Dining");
+  state = addExpenseToState(state, "Metro Card Recharge", 250, "Transportation");
+  state = addExpenseToState(state, "Engineering Notebook", 120, "Books & Study");
+
+  assert.strictEqual(state.length, 3);
+  const metrics = calculateTotals(state);
+  assert.strictEqual(metrics.total, 450);
+  assert.strictEqual(metrics.count, 3);
+  assert.strictEqual(metrics.highest, 250);
+  console.log("PASS: Adding valid items calculates metrics accurately");
+}
+
+// Test 3: Validation rejection (empty description, negative amount, zero amount, NaN, Infinity)
+{
+  let state = [];
+  state = addExpenseToState(state, "", 100, "Food");
+  state = addExpenseToState(state, "   ", 100, "Food");
+  state = addExpenseToState(state, "Zero Amount", 0, "Food");
+  state = addExpenseToState(state, "Negative Amount", -50, "Food");
+  state = addExpenseToState(state, "Non-number", "invalid", "Food");
+  state = addExpenseToState(state, "Infinite Amount", Infinity, "Food");
+
+  assert.strictEqual(state.length, 0, "All invalid records must be rejected");
+  console.log("PASS: Input validation rejects invalid descriptions and non-positive/infinite amounts");
+}
+
+// Test 4: Deletion behavior and metrics recalculation
+{
+  let state = [];
+  state = addExpenseToState(state, "Item Alpha", 100, "Other");
+  state = addExpenseToState(state, "Item Beta", 300, "Other");
+  const idToDelete = state[0].id;
+
+  state = deleteExpenseFromState(state, idToDelete);
+  assert.strictEqual(state.length, 1);
+  const metrics = calculateTotals(state);
+  assert.strictEqual(metrics.total, 100);
+  assert.strictEqual(metrics.count, 1);
+  assert.strictEqual(metrics.highest, 100);
+  console.log("PASS: Deletion removes target item and updates metrics");
+}
+
+// Test 5: In-memory state storage of HTML/script payloads
+{
+  let state = [];
+  const payload = "<script>alert('xss')</script>";
+  state = addExpenseToState(state, payload, 99, "Other");
+
+  assert.strictEqual(state.length, 1);
+  assert.strictEqual(state[0].desc, payload);
+  console.log("PASS: HTML tags in description are stored literally without execution");
+}
+
+// Test 6: DOM rendering safe-text verification using safe DOM text APIs (DOM Simulation)
+{
+  const createdElements = [];
+  const mockDoc = {
+    createElement(tag) {
+      const el = {
+        tagName: tag.toUpperCase(),
+        className: "",
+        textContent: "",
+        children: [],
+        attributes: {},
+        setAttribute(k, v) { this.attributes[k] = v; },
+        appendChild(child) {
+          this.children.push(child);
+          if (child.textContent) {
+            this.textContent += child.textContent;
+          }
+        }
+      };
+      createdElements.push(el);
+      return el;
+    },
+    createTextNode(text) {
+      return { textContent: text, isTextNode: true };
+    }
+  };
+
+  const prevDoc = global.document;
+  global.document = mockDoc;
+
+  const htmlPayload = "<script>alert('xss')</script><img src=x onerror=alert(1)>";
+  const item = {
+    id: "exp_test_xss",
+    desc: htmlPayload,
+    amount: 150,
+    category: "Food & Dining",
+    date: "23 Nov 2026"
+  };
+
+  const renderedLi = createExpenseItemElement(item, () => {});
+
+  // 1. Confirm description appears as literal text
+  const descEl = createdElements.find(el => el.className === "item-desc");
+  assert.ok(descEl, "item-desc element must exist");
+  assert.strictEqual(descEl.textContent, htmlPayload, "Payload must appear as literal textContent");
+
+  // 2. Confirm no script or img HTML elements were created
+  const injectedScript = createdElements.find(el => el.tagName === "SCRIPT");
+  const injectedImg = createdElements.find(el => el.tagName === "IMG");
+  assert.strictEqual(injectedScript, undefined, "No SCRIPT element should ever be created");
+  assert.strictEqual(injectedImg, undefined, "No IMG element should ever be created");
+
+  // 3. Confirm category and date values are rendered safely
+  const catEl = createdElements.find(el => el.className === "item-category");
+  assert.ok(catEl, "item-category element must exist");
+  assert.strictEqual(catEl.textContent, "Food & Dining", "Category must be safe textContent");
+
+  const metaEl = createdElements.find(el => el.className === "item-meta");
+  assert.ok(metaEl, "item-meta element must exist");
+  assert.ok(metaEl.children.some(c => c.isTextNode && c.textContent.includes("23 Nov 2026")), "Date must be an inert text node");
+
+  // 4. Confirm accessible delete button
+  const delBtn = createdElements.find(el => el.className === "delete-btn");
+  assert.ok(delBtn, "delete-btn element must exist");
+  assert.strictEqual(delBtn.attributes["aria-label"], `Delete expense: ${htmlPayload} (₹150)`);
+
+  global.document = prevDoc;
+  console.log("PASS: DOM rendering verified safe: textContent ensures HTML/script tags render as inert text");
+}
+
+// Test 7: LocalStorage serialization and recovery simulation
+{
+  const mockStorage = new Map();
+  const testData = [
+    { id: "exp_1", desc: "Textbook", amount: 500, category: "Books & Study", date: "23 Nov 2026" }
+  ];
+
+  mockStorage.set(STORAGE_KEY, JSON.stringify(testData));
+  const retrievedRaw = mockStorage.get(STORAGE_KEY);
+  const parsedData = JSON.parse(retrievedRaw);
+
+  assert.strictEqual(parsedData.length, 1);
+  assert.strictEqual(parsedData[0].desc, "Textbook");
+  assert.strictEqual(parsedData[0].amount, 500);
+  console.log("PASS: Storage serialization round-trip maintains data integrity");
+}
+
+// Test 8: LocalStorage hardening against malformed or unexpected JSON structures
+{
+  // 1. Non-array inputs must default safely to empty array
+  assert.deepStrictEqual(sanitizeStoredExpenses(null), []);
+  assert.deepStrictEqual(sanitizeStoredExpenses(undefined), []);
+  assert.deepStrictEqual(sanitizeStoredExpenses("corrupted string"), []);
+  assert.deepStrictEqual(sanitizeStoredExpenses(12345), []);
+  assert.deepStrictEqual(sanitizeStoredExpenses({ invalid: "object" }), []);
+  assert.deepStrictEqual(sanitizeStoredExpenses(true), []);
+
+  // 2. Corrupt or malformed array items are safely filtered, rejecting malformed amount strings like "125abc"
+  const corruptInput = [
+    null,
+    undefined,
+    42,
+    "not-an-object",
+    {},
+    { desc: "", amount: 100 },
+    { desc: "   ", amount: 100 },
+    { desc: "Negative amount", amount: -50 },
+    { desc: "Zero amount", amount: 0 },
+    { desc: "NaN amount", amount: "not_a_number" },
+    { desc: "Infinite amount", amount: Infinity },
+    { desc: "Malformed numeric string", amount: "125abc" },
+    { id: "exp_valid_1", desc: "Valid Dinner", amount: 250.5, category: "Food & Dining", date: "23 Nov 2026" },
+    { desc: "Valid Snack without ID", amount: 45 }
+  ];
+
+  const sanitized = sanitizeStoredExpenses(corruptInput);
+  assert.strictEqual(sanitized.length, 2, "Only valid expense objects should be preserved, rejecting '125abc'");
+  assert.strictEqual(sanitized[0].id, "exp_valid_1");
+  assert.strictEqual(sanitized[0].desc, "Valid Dinner");
+  assert.strictEqual(sanitized[0].amount, 250.5);
+  assert.strictEqual(sanitized[0].category, "Food & Dining");
+
+  assert.strictEqual(sanitized[1].desc, "Valid Snack without ID");
+  assert.strictEqual(sanitized[1].amount, 45);
+  assert.strictEqual(sanitized[1].category, "Other");
+  assert.ok(sanitized[1].id.startsWith("exp_"), "Missing ID should be safely generated");
+
+  // 3. Precision & Original Amount Preservation:
+  // - A malformed amount string such as "125abc" is rejected
+  // - A valid numeric amount with fractional precision (e.g. 145.875) is preserved
+  // - A small positive amount that would previously round to zero (e.g. 0.001) is preserved
+  // - All valid existing record fields (desc, ID, category, date, amount) are preserved
+  const originalRecord = {
+    id: "exp_exact_1",
+    desc: "Research Lab Fee",
+    amount: 145.875,
+    category: "Books & Study",
+    date: "15 Oct 2026"
+  };
+  const microRecord = {
+    id: "exp_micro_1",
+    desc: "Micro Unit Payment",
+    amount: 0.001,
+    category: "Other",
+    date: "20 Nov 2026"
+  };
+  const malformedStringRecord = {
+    id: "exp_bad_1",
+    desc: "Invalid Amount String",
+    amount: "125abc"
+  };
+
+  const precisionTestList = [originalRecord, microRecord, malformedStringRecord];
+  const precisionSanitized = sanitizeStoredExpenses(precisionTestList);
+
+  assert.strictEqual(precisionSanitized.length, 2, "Malformed amount '125abc' must be rejected");
+  assert.strictEqual(precisionSanitized[0].amount, originalRecord.amount, "Original amount must be preserved exactly");
+  assert.strictEqual(precisionSanitized[0].amount, 145.875, "Valid numeric amount with fractional precision must not be rounded");
+  assert.strictEqual(precisionSanitized[0].desc, originalRecord.desc, "Original description must be preserved");
+  assert.strictEqual(precisionSanitized[0].id, originalRecord.id, "Original ID must be preserved");
+  assert.strictEqual(precisionSanitized[0].category, originalRecord.category, "Original category must be preserved");
+  assert.strictEqual(precisionSanitized[0].date, originalRecord.date, "Original date must be preserved");
+
+  assert.strictEqual(precisionSanitized[1].amount, 0.001, "Small positive amount (0.001) must not round to zero");
+  assert.strictEqual(precisionSanitized[1].amount, microRecord.amount, "Micro amount must match original");
+
+  // 4. Confirm sanitized output passes through calculation metrics without crashing
+  const metrics = calculateTotals(sanitized);
+  assert.strictEqual(metrics.total, 295.5);
+  assert.strictEqual(metrics.count, 2);
+  assert.strictEqual(metrics.highest, 250.5);
+
+  console.log("PASS: LocalStorage hardening safely handles non-array and corrupt data structures");
+}
+
+console.log("\n=======================================================");
+console.log("ALL 8 EXPENSE TRACKER VERIFICATION TESTS PASSED!");
+console.log("=======================================================\n");
