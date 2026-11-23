@@ -1,37 +1,90 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <meta http-equiv="Content-Style-Type" content="text/css">
-  <title></title>
-  <meta name="Generator" content="Cocoa HTML Writer">
-  <meta name="CocoaVersion" content="2685.3">
-  <style type="text/css">
-    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
-    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Expense Tracker — Daily Spending & Budgeting</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<p class="p1">&lt;!DOCTYPE html&gt;</p>
-<p class="p1">&lt;html&gt;</p>
-<p class="p1">&lt;head&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;title&gt;Expense Tracker&lt;/title&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;link rel="stylesheet" href="style.css"&gt;</p>
-<p class="p1">&lt;/head&gt;</p>
-<p class="p1">&lt;body&gt;</p>
-<p class="p2"><br></p>
-<p class="p1">&lt;h1&gt;Expense Tracker&lt;/h1&gt;</p>
-<p class="p2"><br></p>
-<p class="p1">&lt;input type="text" id="desc" placeholder="Description"&gt;</p>
-<p class="p1">&lt;input type="number" id="amount" placeholder="Amount"&gt;</p>
-<p class="p1">&lt;button onclick="addExpense()"&gt;Add&lt;/button&gt;</p>
-<p class="p2"><br></p>
-<p class="p1">&lt;h2&gt;Total: ₹&lt;span id="total"&gt;0&lt;/span&gt;&lt;/h2&gt;</p>
-<p class="p2"><br></p>
-<p class="p1">&lt;ul id="list"&gt;&lt;/ul&gt;</p>
-<p class="p2"><br></p>
-<p class="p1">&lt;script src="script.js"&gt;&lt;/script&gt;</p>
-<p class="p1">&lt;/body&gt;</p>
-<p class="p1">&lt;/html&gt;</p>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="badge">Student Finance</div>
+      <h1>Expense Tracker</h1>
+      <p class="subtitle">Log daily spending, categorize outlays, and maintain financial discipline.</p>
+    </header>
+
+    <!-- Metrics Cards -->
+    <section class="metrics-grid">
+      <div class="metric-card">
+        <span class="metric-label">Total Outflow</span>
+        <div class="metric-value">₹<span id="total">0</span></div>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Transactions</span>
+        <div class="metric-value"><span id="count">0</span></div>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Largest Expense</span>
+        <div class="metric-value">₹<span id="highest">0</span></div>
+      </div>
+    </section>
+
+    <!-- Expense Entry Form -->
+    <section class="entry-card">
+      <h2>Add New Expense</h2>
+      <form id="expense-form" onsubmit="event.preventDefault(); addExpense();">
+        <div class="form-row">
+          <div class="form-group flex-2">
+            <label for="desc">Description</label>
+            <input type="text" id="desc" placeholder="e.g. Canteen lunch, Metro pass" required autocomplete="off">
+          </div>
+          <div class="form-group flex-1">
+            <label for="amount">Amount (₹)</label>
+            <input type="number" id="amount" placeholder="e.g. 150" min="1" step="any" required>
+          </div>
+          <div class="form-group flex-1">
+            <label for="category">Category</label>
+            <select id="category">
+              <option value="Food & Dining">🍔 Food & Dining</option>
+              <option value="Transportation">🚇 Transportation</option>
+              <option value="Books & Study">📚 Books & Study</option>
+              <option value="Hostel & Rent">🏠 Hostel & Rent</option>
+              <option value="Entertainment">🎬 Entertainment</option>
+              <option value="Other">📦 Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" id="add-btn" class="btn btn-primary">+ Add Expense</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Transaction History -->
+    <section class="history-card">
+      <div class="history-header">
+        <h2>Recent Transactions</h2>
+        <button type="button" id="clear-btn" class="btn-link" onclick="clearAllExpenses()">Clear History</button>
+      </div>
+
+      <ul id="list" class="expense-list">
+        <!-- Rendered dynamically -->
+      </ul>
+
+      <div id="empty-state" class="empty-state">
+        <p>No transactions logged yet. Start by adding your first daily expense above.</p>
+      </div>
+    </section>
+
+    <footer class="app-footer">
+      <p>Crafted by <strong><a href="https://github.com/nish1923" target="_blank" rel="noopener">Nischal S (@nish1923)</a></strong> · Client-side LocalStorage Persistence</p>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>

@@ -1,0 +1,25 @@
+{
+  "name": "expense-tracker",
+  "version": "1.0.0",
+  "description": "Lightweight, responsive student expense tracker with category tagging, dynamic summary metrics, and client-side persistence.",
+  "main": "index.html",
+  "scripts": {
+    "test": "node tests/test_expense_tracker.mjs",
+    "start": "npx serve ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nish1923/expense-tracker.git"
+  },
+  "keywords": [
+    "expense-tracker",
+    "javascript",
+    "student-budgeting",
+    "finance",
+    "localstorage",
+    "html5",
+    "css3"
+  ],
+  "author": "Nischal S <nischal.ns7770@gmail.com> (https://github.com/nish1923)",
+  "license": "MIT"
+}
